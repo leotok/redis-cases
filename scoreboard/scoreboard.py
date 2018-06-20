@@ -1,9 +1,9 @@
+from decorators import timeit
 import redis
 import random
-import names
 import sqlite3
 import json
-import datetime as dt
+
 
 ############## SQLite3 ##############
 
@@ -20,8 +20,10 @@ def init_sqlite():
             score INTEGER
     );
     """)
+    cursor.execute("""CREATE INDEX IF NOT EXISTS score_index ON classification (score);""")
     return conn
 
+@timeit
 def add_score_sqlite(scores_list, conn):
     cursor = conn.cursor()
     cursor.executemany("""
@@ -30,6 +32,7 @@ def add_score_sqlite(scores_list, conn):
     """, scores_list)
     conn.commit()
 
+@timeit
 def get_classification_sqlite(conn):
     cursor = conn.cursor()
     cursor.execute("""
@@ -46,12 +49,13 @@ def init_redis():
     r.zremrangebyrank('classification', 0, n_users)
     return r
 
+@timeit
 def add_score_redis(scores_list, r):
     i = 0
     while i < len(scores_list):
         r.zadd('classification', **{name:score for name, score in scores_list[i:i+1000]})
         i += 1000
-
+@timeit
 def get_classification_redis(r):
     return r.zrevrange('classification', 0, 10, withscores=True)
 
@@ -73,12 +77,7 @@ if __name__ == '__main__':
     add_score_redis(scores_list, r)
     add_score_sqlite(scores_list, conn)
 
-    start = dt.datetime.now()
     print (get_classification_sqlite(conn))
-    print ('SQLite: ', dt.datetime.now() - start)
-
-    start = dt.datetime.now()
     print (get_classification_redis(r))
-    print ('Redis: ',dt.datetime.now() - start)
 
     conn.close()
